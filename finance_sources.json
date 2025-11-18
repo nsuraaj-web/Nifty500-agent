@@ -1,0 +1,5 @@
+{
+  "yahoo": "https://finance.yahoo.com/quote/$ticker$.NS",
+  "google": "https://www.google.com/finance/quote/$ticker$:NSE",
+  "screener": "https://www.screener.in/company/$ticker$/"
+}

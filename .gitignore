@@ -1,0 +1,35 @@
+
+*.sqlite3
+
+
+# Virtual envs
+venv/
+venv311/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Env files
+.env
+.env.local
+
+# Local vector DB / Chroma
+chroma_store/
+
+# Logs & temp
+logs/
+*.log
+
+# Streamlit / other app cache
+.streamlit/
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
