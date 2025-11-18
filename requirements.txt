@@ -3,7 +3,6 @@ langchain==1.0.7
 langchain-community==0.4.1
 langchain-google-genai==3.0.3
 langchain-chroma==0.1.4
-chromadb==0.5.5
 
 supabase==2.4.0
 python-dotenv==1.0.1
