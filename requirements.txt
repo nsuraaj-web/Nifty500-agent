@@ -1,16 +1,19 @@
-langchain
-langchain-community
-langchain-google-genai
-langchain-chroma
+# LangChain core stack (same as your local environment)
+langchain==1.0.7
+langchain-community==0.4.1
+langchain-google-genai==3.0.3
 
+# Supabase + HTTP stack
 supabase==2.4.0
 httpx==0.24.1
 gotrue==2.4.4
 python-dotenv==1.0.1
 
+# HTML / RSS parsing
 feedparser==6.0.11
 beautifulsoup4==4.12.3
 lxml==5.3.0
 
+# API server
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
