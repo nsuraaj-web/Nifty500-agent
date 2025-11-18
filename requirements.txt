@@ -1,12 +1,11 @@
-# ----- LangChain Suite
 langchain
 langchain-community
 langchain-google-genai
 langchain-chroma
 
-# ----- Core Dependencies
 supabase==2.4.0
 httpx==0.24.1
+gotrue==2.4.4
 python-dotenv==1.0.1
 
 feedparser==6.0.11
