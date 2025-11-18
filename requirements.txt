@@ -5,7 +5,7 @@ langchain-google-genai==3.0.3
 langchain-chroma==0.1.4
 chromadb==0.5.5
 
-supabase-py==2.4.0
+supabase==2.4.0
 python-dotenv==1.0.1
 
 feedparser==6.0.11
