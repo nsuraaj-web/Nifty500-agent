@@ -10,6 +10,7 @@ import streamlit as st
 import requests
 import pandas as pd
 from fpdf import FPDF
+from fpdf.errors import FPDFException  # <- add this import at the top of ui_app.py
 
 from supabaseclient import supabase  # your existing Supabase client
 
@@ -369,32 +370,67 @@ def download_text_file(content: str, filename: str = "stock_report.md") -> bytes
     return content.encode("utf-8")
 
 
+from fpdf import FPDF
+from fpdf.errors import FPDFException  # <- add this import at the top of ui_app.py
+
+
 def generate_pdf_bytes(report_text: str, title: str) -> bytes:
     """
-    Very simple text → PDF using fpdf2.
-    Handles multi-line text and basic wrapping.
+    Simple text → PDF using fpdf2 with defensive handling:
+    - Replace unsupported chars like ₹
+    - Wrap long lines into smaller chunks
+    - Skip/truncate any lines that FPDF can't render instead of crashing
     """
-    safe_text = report_text.replace("₹", "Rs.") 
+    # 1) Sanitize text for core fonts
+    safe_text = (
+        report_text
+        .replace("₹", "Rs.")          # currency symbol
+        .replace("\t", "    ")        # tabs → spaces
+    )
+
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     pdf.set_title(title)
 
-    pdf.set_font("Arial", size=12)
+    # Core, non-unicode font
+    pdf.set_font("Helvetica", size=12)
 
-    # Simple wrapping: break on newline, then multi_cell for each line
-    for line in report_text.splitlines():
-        if not line.strip():
+    max_chunk_len = 120  # keep each written line reasonably short
+
+    for raw_line in safe_text.splitlines():
+        # blank line → vertical spacing
+        if not raw_line.strip():
             pdf.ln(5)
-        else:
-            pdf.multi_cell(0, 6, line)
+            continue
 
-    # Return in-memory PDF bytes
+        line = raw_line
+
+        # 2) Break very long lines into chunks
+        start = 0
+        while start < len(line):
+            chunk = line[start:start + max_chunk_len]
+            start += max_chunk_len
+
+            # extra safety: strip crazy control chars
+            chunk = "".join(ch for ch in chunk if ord(ch) >= 32 or ch in "\n\r")
+
+            if not chunk.strip():
+                pdf.ln(3)
+                continue
+
+            try:
+                pdf.multi_cell(0, 6, chunk)
+            except FPDFException:
+                # last resort: try a smaller slice; if still fails, skip it
+                try:
+                    pdf.multi_cell(0, 6, chunk[:40])
+                except FPDFException:
+                    # give up on this problematic piece
+                    continue
+
     return pdf.output(dest="S").encode("latin-1")
 
-# -----------------------------
-# Auth Helpers (Login)
-# -----------------------------
 
 
 def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
