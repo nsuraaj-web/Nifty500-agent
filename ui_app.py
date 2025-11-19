@@ -1,36 +1,33 @@
 from dotenv import load_dotenv
-load_dotenv() 
-import io
-import textwrap
+load_dotenv()
+
 import os
-import bcrypt
+import textwrap
 from typing import Optional, Dict, Any
 
+import bcrypt
 import streamlit as st
 import requests
 import pandas as pd
 from fpdf import FPDF
 
-from supabaseclient import supabase  # uses your existing supabase client
-
+from supabaseclient import supabase  # your existing Supabase client
 
 # -----------------------------
-# Config
+# Streamlit Config
 # -----------------------------
 st.set_page_config(
     page_title="Stock Rating & RAG Assistant",
     page_icon="📈",
     layout="wide",
 )
-require_login()
 
-# You can point this to your Render URL later
-DEFAULT_API_BASE = "http://127.0.0.1:8000"  # or https://your-service.onrender.com
+# Backend API base (FastAPI + agent)
+DEFAULT_API_BASE = os.getenv("DEFAULT_API_BASE", "http://127.0.0.1:8000")
 
 # -----------------------------
-# Helper functions
+# Conceptual Buckets for Internal Data
 # -----------------------------
-
 INTERNAL_BUCKETS = {
     "Price & Returns": {
         "consolidated_master": [
@@ -186,12 +183,14 @@ INTERNAL_BUCKETS = {
     },
 }
 
+# -----------------------------
+# Helper Functions
+# -----------------------------
+
+
 @st.cache_data(show_spinner=False)
 def load_tickers() -> Dict[str, str]:
-    """
-    Load ticker -> name mapping from Supabase.
-    Tries ratings_master first, then master_universe as fallback.
-    """
+    """Load ticker -> name mapping from Supabase."""
     try:
         res = (
             supabase.table("master_universe")
@@ -206,6 +205,191 @@ def load_tickers() -> Dict[str, str]:
     except Exception as e:
         st.warning(f"Could not load tickers from Supabase: {e}")
         return {}
+
+
+def get_ticker_snapshot(ticker: str) -> Dict[str, Any]:
+    """
+    Fetch latest snapshot for a ticker from consolidated_master + ratings_master.
+    """
+    snapshot: Dict[str, Any] = {}
+
+    try:
+        # Price + fundamentals from consolidated_master
+        res_price = (
+            supabase.table("consolidated_master")
+            .select(
+                "current_price, previous_close, price_3m_ago, price_6m_ago,"
+                "price_12m_ago, market_cap, pe_ratio_trailing, pe_ratio_forward,"
+                "price_to_book, dividend_yield, revenue_growth, eps_growth, beta"
+            )
+            .eq("ticker", ticker)
+            .limit(1)
+            .execute()
+        )
+        if res_price.data:
+            snapshot["price_block"] = res_price.data[0]
+
+        # Ratings from ratings_master (latest rating_date)
+        res_rating = (
+            supabase.table("ratings_master")
+            .select(
+                "momentum_score, quality_score, valuation_score, growth_score,"
+                "financial_stability_score, cash_flow_score, composite_score,"
+                "rating, rank, action, ytd_return_pct, upside_potential_pct, "
+                "beta, debt_to_equity, dividend_yield_pct, target_price_6m"
+            )
+            .eq("ticker", ticker)
+            .order("rating_date", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if res_rating.data:
+            snapshot["rating_block"] = res_rating.data[0]
+
+    except Exception as e:
+        st.error(f"Error fetching snapshot for {ticker}: {e}")
+
+    return snapshot
+
+
+def get_full_internal_rows(ticker: str) -> Dict[str, Dict[str, Any]]:
+    """
+    Fetch a single 'full row' for this ticker from key tables:
+    consolidated_master, derived_master, ratings_master (latest).
+    Returns: {table_name: row_dict}
+    """
+    result: Dict[str, Dict[str, Any]] = {}
+
+    # consolidated_master
+    try:
+        res = (
+            supabase.table("consolidated_master")
+            .select("*")
+            .eq("ticker", ticker)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            result["consolidated_master"] = res.data[0]
+    except Exception as e:
+        st.warning(f"Error loading consolidated_master for {ticker}: {e}")
+
+    # derived_master
+    try:
+        res = (
+            supabase.table("derived_master")
+            .select("*")
+            .eq("ticker", ticker)
+            .order("snapshot_date", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            result["derived_master"] = res.data[0]
+    except Exception as e:
+        st.warning(f"Error loading derived_master for {ticker}: {e}")
+
+    # ratings_master (latest rating_date)
+    try:
+        res = (
+            supabase.table("ratings_master")
+            .select("*")
+            .eq("ticker", ticker)
+            .order("rating_date", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            result["ratings_master"] = res.data[0]
+    except Exception as e:
+        st.warning(f"Error loading ratings_master for {ticker}: {e}")
+
+    return result
+
+
+def call_agent(api_base: str, query: str) -> Optional[str]:
+    try:
+        resp = requests.post(
+            f"{api_base.rstrip('/')}/agent",
+            json={"query": query},
+            timeout=60,
+        )
+        if resp.status_code != 200:
+            st.error(f"Agent error: {resp.status_code} - {resp.text}")
+            return None
+        data = resp.json()
+        return data.get("answer", "")
+    except Exception as e:
+        st.error(f"Failed to call agent: {e}")
+        return None
+
+
+def beautify_number(val: Any) -> str:
+    if val is None:
+        return "-"
+    try:
+        f = float(val)
+    except Exception:
+        return str(val)
+
+    # Large numbers as Cr/Bn style
+    if abs(f) >= 1e9:
+        return f"{f / 1e9:.2f} B"
+    if abs(f) >= 1e7:
+        return f"{f / 1e7:.2f} Cr"
+    if abs(f) >= 1e5:
+        return f"{f:,.0f}"
+    return f"{f:.2f}"
+
+
+def make_report_prompt(ticker: str, company_name: str, template_text: str) -> str:
+    base_instruction = textwrap.dedent(
+        f"""
+        You are an equity research assistant.
+
+        Generate a detailed, investor-friendly report for the stock {ticker} ({company_name}).
+
+        Use the internal fundamentals, derived metrics, and ratings available in the tools/RAG system,
+        and augment with external web/news sources when relevant.
+
+        Follow this report template exactly, filling in the sections with well-structured content,
+        tables where appropriate (as markdown), and clear conclusions and risks.
+        """
+    ).strip()
+
+    return base_instruction + "\n\n=== TEMPLATE START ===\n" + template_text + "\n=== TEMPLATE END ==="
+
+
+def download_text_file(content: str, filename: str = "stock_report.md") -> bytes:
+    return content.encode("utf-8")
+
+
+def generate_pdf_bytes(report_text: str, title: str) -> bytes:
+    """
+    Very simple text → PDF using fpdf2.
+    Handles multi-line text and basic wrapping.
+    """
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_title(title)
+
+    pdf.set_font("Arial", size=12)
+
+    # Simple wrapping: break on newline, then multi_cell for each line
+    for line in report_text.splitlines():
+        if not line.strip():
+            pdf.ln(5)
+        else:
+            pdf.multi_cell(0, 6, line)
+
+    # Return in-memory PDF bytes
+    return pdf.output(dest="S").encode("latin-1")
+
+# -----------------------------
+# Auth Helpers (Login)
+# -----------------------------
+
 
 def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
     """
@@ -268,113 +452,13 @@ def require_login():
     # Stop rendering the rest of the app until logged in
     st.stop()
 
-def get_ticker_snapshot(ticker: str) -> Dict[str, Any]:
-    """
-    Fetch latest snapshot for a ticker from consolidated_master + ratings_master.
-    You can customize which fields to show.
-    """
-    snapshot: Dict[str, Any] = {}
 
-    try:
-        # Price + fundamentals from consolidated_master
-        res_price = (
-            supabase.table("consolidated_master")
-            .select(
-                "current_price, previous_close, price_3m_ago, price_6m_ago,"
-                "price_12m_ago, market_cap, pe_ratio_trailing, pe_ratio_forward,"
-                "price_to_book, dividend_yield, revenue_growth, eps_growth, beta"
-            )
-            .eq("ticker", ticker)
-            .limit(1)
-            .execute()
-        )
-        if res_price.data:
-            snapshot["price_block"] = res_price.data[0]
-
-        # Ratings from ratings_master (latest rating_date)
-        res_rating = (
-            supabase.table("ratings_master")
-            .select(
-                "momentum_score, quality_score, valuation_score, growth_score,"
-                "financial_stability_score, cash_flow_score, composite_score,"
-                "rating, rank, action, ytd_return_pct, upside_potential_pct, "
-                "beta, debt_to_equity, dividend_yield_pct, target_price_6m"
-            )
-            .eq("ticker", ticker)
-            .order("rating_date", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if res_rating.data:
-            snapshot["rating_block"] = res_rating.data[0]
-
-    except Exception as e:
-        st.error(f"Error fetching snapshot for {ticker}: {e}")
-
-    return snapshot
-
-
-def call_agent(api_base: str, query: str) -> Optional[str]:
-    try:
-        resp = requests.post(
-            f"{api_base.rstrip('/')}/agent",
-            json={"query": query},
-            timeout=60,
-        )
-        if resp.status_code != 200:
-            st.error(f"Agent error: {resp.status_code} - {resp.text}")
-            return None
-        data = resp.json()
-        return data.get("answer", "")
-    except Exception as e:
-        st.error(f"Failed to call agent: {e}")
-        return None
-
-
-def beautify_number(val: Any) -> str:
-    if val is None:
-        return "-"
-    try:
-        f = float(val)
-    except Exception:
-        return str(val)
-
-    # Large numbers as Cr/Bn style
-    if abs(f) >= 1e9:
-        return f"{f / 1e9:.2f} B"
-    if abs(f) >= 1e7:
-        return f"{f / 1e7:.2f} Cr"
-    if abs(f) >= 1e5:
-        return f"{f:,.0f}"
-    return f"{f:.2f}"
-
-
-def make_report_prompt(ticker: str, company_name: str, template_text: str) -> str:
-    base_instruction = textwrap.dedent(
-        f"""
-        You are an equity research assistant.
-
-        Generate a detailed, investor-friendly report for the stock {ticker} ({company_name}).
-
-        Use the internal fundamentals, derived metrics, and ratings available in the tools/RAG system,
-        and augment with external web/news sources when relevant.
-
-        Follow this report template exactly, filling in the sections with well-structured content,
-        tables where appropriate (as markdown), and clear conclusions and risks.
-        """
-    ).strip()
-
-    return base_instruction + "\n\n=== TEMPLATE START ===\n" + template_text + "\n=== TEMPLATE END ==="
-
-
-def download_text_file(content: str, filename: str = "stock_report.md") -> bytes:
-    return content.encode("utf-8")
-
+# 🔐 Enforce login before rendering the rest of the app
+require_login()
 
 # -----------------------------
 # Sidebar
 # -----------------------------
-
 st.sidebar.title("⚙️ Settings")
 
 user = st.session_state.user
@@ -384,35 +468,33 @@ if st.sidebar.button("Logout"):
     st.session_state.user = None
     st.experimental_rerun()
 
-
 api_base = st.sidebar.text_input("API Base URL", value=DEFAULT_API_BASE)
 
 tickers_map = load_tickers()
 if not tickers_map:
     st.sidebar.error("No tickers loaded from Supabase. Check supabaseclient & env.")
     selected_ticker = None
+    selected_name = None
 else:
     ticker_options = [f"{t} - {name}" for t, name in tickers_map.items()]
     default_index = 0
-    selected_label = st.sidebar.selectbox("Select ticker", ticker_options, index=default_index)
+    selected_label = st.sidebar.selectbox(
+        "Select ticker", ticker_options, index=default_index
+    )
     selected_ticker = selected_label.split(" - ")[0]
     selected_name = tickers_map.get(selected_ticker, selected_ticker)
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Backend: FastAPI + LangChain RAG + Supabase + Chroma")
 
-
 # -----------------------------
 # Layout: Tabs
 # -----------------------------
-
 st.title("📈 Stock Rating & RAG Assistant")
 
 tab_dashboard, tab_chat, tab_internal, tab_reports = st.tabs(
     ["📊 Dashboard", "💬 Chat with Data", "📚 Internal Data", "📄 Reports"]
 )
-
-
 
 # -----------------------------
 # Tab 1: Dashboard
@@ -436,23 +518,36 @@ with tab_dashboard:
             st.metric("Prev Close", beautify_number(price_block.get("previous_close")))
             st.metric("P/E (TTM)", beautify_number(price_block.get("pe_ratio_trailing")))
             st.metric("P/B", beautify_number(price_block.get("price_to_book")))
-            st.metric("Dividend Yield %", beautify_number(price_block.get("dividend_yield")))
+            st.metric(
+                "Dividend Yield %",
+                beautify_number(price_block.get("dividend_yield")),
+            )
 
         with col2:
             st.markdown("**Returns & Growth**")
             st.metric("Price 3M Ago", beautify_number(price_block.get("price_3m_ago")))
             st.metric("Price 6M Ago", beautify_number(price_block.get("price_6m_ago")))
-            st.metric("Price 12M Ago", beautify_number(price_block.get("price_12m_ago")))
-            st.metric("Revenue Growth", beautify_number(price_block.get("revenue_growth")))
+            st.metric(
+                "Price 12M Ago", beautify_number(price_block.get("price_12m_ago"))
+            )
+            st.metric(
+                "Revenue Growth", beautify_number(price_block.get("revenue_growth"))
+            )
             st.metric("EPS Growth", beautify_number(price_block.get("eps_growth")))
 
         with col3:
             st.markdown("**Rating Snapshot**")
-            st.metric("Composite Score", beautify_number(rating_block.get("composite_score")))
+            st.metric(
+                "Composite Score",
+                beautify_number(rating_block.get("composite_score")),
+            )
             st.metric("Rating", rating_block.get("rating") or "-")
             st.metric("Rank", rating_block.get("rank") or "-")
             st.metric("Action", rating_block.get("action") or "-")
-            st.metric("Upside %", beautify_number(rating_block.get("upside_potential_pct")))
+            st.metric(
+                "Upside %",
+                beautify_number(rating_block.get("upside_potential_pct")),
+            )
 
         st.markdown("---")
 
@@ -475,7 +570,6 @@ with tab_dashboard:
             st.dataframe(rating_rows, use_container_width=True)
         else:
             st.info("No rating details found for this ticker.")
-
 
 # -----------------------------
 # Tab 2: Chat with Data
@@ -606,8 +700,6 @@ with tab_internal:
                 df_other = pd.DataFrame(other_records).sort_values(by=["Field"])
                 st.dataframe(df_other, use_container_width=True)
 
-
-
 # -----------------------------
 # Tab 4: Reports
 # -----------------------------
@@ -622,9 +714,9 @@ with tab_reports:
         st.markdown("#### 1. Upload or edit a report template")
 
         uploaded_file = st.file_uploader(
-            "Upload template (Markdown / TXT / DOCX as text)",
+            "Upload template (Markdown / TXT)",
             type=["md", "txt"],
-            help="For now we treat everything as text/markdown. DOCX support can be added later.",
+            help="For now we treat everything as text/markdown.",
         )
 
         default_template = textwrap.dedent(
@@ -708,6 +800,7 @@ with tab_reports:
                         file_name=f"{selected_ticker}_report.md",
                         mime="text/markdown",
                     )
+
                     # PDF download
                     pdf_bytes = generate_pdf_bytes(
                         report,
@@ -719,80 +812,3 @@ with tab_reports:
                         file_name=f"{selected_ticker}_report.pdf",
                         mime="application/pdf",
                     )
-                 
-def generate_pdf_bytes(report_text: str, title: str) -> bytes:
-    """
-    Very simple text → PDF using fpdf2.
-    Handles multi-line text and basic wrapping.
-    """
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    pdf.set_title(title)
-
-    pdf.set_font("Arial", size=12)
-
-    # Simple wrapping: break on newline, then multi_cell for each line
-    for line in report_text.splitlines():
-        if not line.strip():
-            pdf.ln(5)
-        else:
-            pdf.multi_cell(0, 6, line)
-
-    # Return in-memory PDF bytes
-    return pdf.output(dest="S").encode("latin-1")
-
-def get_full_internal_rows(ticker: str) -> Dict[str, Dict[str, Any]]:
-    """
-    Fetch a single 'full row' for this ticker from key tables:
-    consolidated_master, derived_master, ratings_master (latest).
-    Returns: {table_name: row_dict}
-    """
-    result: Dict[str, Dict[str, Any]] = {}
-
-    # consolidated_master
-    try:
-        res = (
-            supabase.table("consolidated_master")
-            .select("*")
-            .eq("ticker", ticker)
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            result["consolidated_master"] = res.data[0]
-    except Exception as e:
-        st.warning(f"Error loading consolidated_master for {ticker}: {e}")
-
-    # derived_master
-    try:
-        res = (
-            supabase.table("derived_master")
-            .select("*")
-            .eq("ticker", ticker)
-            .order("snapshot_date", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            result["derived_master"] = res.data[0]
-    except Exception as e:
-        st.warning(f"Error loading derived_master for {ticker}: {e}")
-
-    # ratings_master (latest rating_date)
-    try:
-        res = (
-            supabase.table("ratings_master")
-            .select("*")
-            .eq("ticker", ticker)
-            .order("rating_date", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if res.data:
-            result["ratings_master"] = res.data[0]
-    except Exception as e:
-        st.warning(f"Error loading ratings_master for {ticker}: {e}")
-
-    return result
-
