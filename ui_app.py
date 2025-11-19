@@ -307,18 +307,21 @@ def get_full_internal_rows(ticker: str) -> Dict[str, Dict[str, Any]]:
     return result
 
 
-def call_agent(api_base: str, query: str) -> Optional[str]:
+def call_agent(api_base: str, query: str, timeout: int = 60) -> Optional[str]:
     try:
         resp = requests.post(
             f"{api_base.rstrip('/')}/agent",
             json={"query": query},
-            timeout=60,
+            timeout=timeout,
         )
         if resp.status_code != 200:
             st.error(f"Agent error: {resp.status_code} - {resp.text}")
             return None
         data = resp.json()
         return data.get("answer", "")
+    except requests.exceptions.ReadTimeout:
+        st.error("Agent timed out while generating a response. Try a shorter question or simpler template.")
+        return None
     except Exception as e:
         st.error(f"Failed to call agent: {e}")
         return None
@@ -351,6 +354,8 @@ def make_report_prompt(ticker: str, company_name: str, template_text: str) -> st
 
         Use the internal fundamentals, derived metrics, and ratings available in the tools/RAG system,
         and augment with external web/news sources when relevant.
+        
+        Keep the final report concise and focused; do not exceed roughly 1,500 words.
 
         Follow this report template exactly, filling in the sections with well-structured content,
         tables where appropriate (as markdown), and clear conclusions and risks.
@@ -784,7 +789,9 @@ with tab_reports:
                     template_text=template_text,
                 )
                 with st.spinner("Asking agent to generate report..."):
-                    report = call_agent(api_base, prompt)
+                    # Reports can be heavier; allow more time
+                    report = call_agent(api_base, prompt, timeout=120)
+
 
                 if report:
                     st.success("Report generated.")
