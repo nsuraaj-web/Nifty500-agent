@@ -443,9 +443,11 @@ def require_login():
     if submitted:
         user = authenticate_user(email, password)
         if user:
-            st.session_state.user = user
-            st.success(f"Welcome, {user.get('full_name') or user['email']}!")
-            st.experimental_rerun()
+            if user:
+                st.session_state.user = user
+                st.success(f"Welcome, {user.get('full_name') or user['email']}!")
+                st.rerun()
+
         else:
             st.error("Invalid email or password.")
 
@@ -466,7 +468,7 @@ st.sidebar.write(f"👤 {user.get('full_name') or user['email']}")
 
 if st.sidebar.button("Logout"):
     st.session_state.user = None
-    st.experimental_rerun()
+    st.rerun()
 
 api_base = st.sidebar.text_input("API Base URL", value=DEFAULT_API_BASE)
 
