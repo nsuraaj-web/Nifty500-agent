@@ -1,10 +1,19 @@
 # api.py
 from fastapi import FastAPI
 from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+
 
 from agent import run_agent, extract_final_text  # <- NOTE: no dot here
 
 app = FastAPI(title="Stock Intelligence Agent API")
+
+# Serve static documentation from /docs folder
+app.mount(
+    "/docs-static",
+    StaticFiles(directory="docs", html=True),
+    name="docs-static",
+)
 
 
 class AgentRequest(BaseModel):

@@ -468,6 +468,9 @@ else:
     selected_name = tickers_map.get(selected_ticker, selected_ticker)
 
 st.sidebar.markdown("---")
+st.sidebar.markdown(f"[📘 Platform Documentation]({DOCS_URL})",)
+st.sidebar.markdown(f'<a href="{DOCS_URL}" target="_blank">📘 Platform Documentation</a>',unsafe_allow_html=True,)
+
 st.sidebar.caption("Backend: FastAPI + LangChain RAG + Supabase + Chroma")
 
 # -----------------------------

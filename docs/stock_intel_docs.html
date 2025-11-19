@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Stock Intelligence Platform Documentation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg-card: #020617;
+      --bg-soft: #020617;
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.12);
+      --text-main: #e5e7eb;
+      --text-muted: #9ca3af;
+      --border-subtle: rgba(148, 163, 184, 0.4);
+      --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.85);
+      --radius-xl: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top left, #0b1120 0, #020617 45%, #020617 100%);
+      color: var(--text-main);
+      line-height: 1.6;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 16px 56px;
+    }
+
+    .header {
+      padding: 24px 24px 18px;
+      border-radius: 24px;
+      background: radial-gradient(circle at top left, #0b1120, #020617 55%);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      box-shadow: var(--shadow-soft);
+      position: sticky;
+      top: 16px;
+      z-index: 10;
+      backdrop-filter: blur(16px);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: rgba(15, 23, 42, .9);
+      border: 1px solid rgba(56, 189, 248, .4);
+    }
+
+    .badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
+    }
+
+    h1 {
+      margin: 14px 0 6px;
+      font-size: 30px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h1 span.icon {
+      font-size: 26px;
+    }
+
+    .header-sub {
+      color: var(--text-muted);
+      font-size: 14px;
+      max-width: 650px;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+      font-size: 11px;
+    }
+
+    .tag {
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      color: var(--text-muted);
+      background: rgba(15, 23, 42, 0.8);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 230px) minmax(0, 1fr);
+      gap: 22px;
+      margin-top: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .header {
+        position: static;
+      }
+    }
+
+    .toc {
+      padding: 14px 14px 16px;
+      border-radius: var(--radius-xl);
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      background: linear-gradient(145deg, rgba(15, 23, 42, 0.96), #020617 70%);
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.7);
+      font-size: 13px;
+    }
+
+    .toc-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .toc ul {
+      list-style: none;
+      padding-left: 0;
+      margin: 0;
+    }
+
+    .toc li {
+      margin: 4px 0;
+    }
+
+    .toc a {
+      color: var(--text-main);
+      text-decoration: none;
+      padding: 4px 6px;
+      border-radius: 6px;
+      display: block;
+    }
+
+    .toc a:hover {
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--accent);
+    }
+
+    .content {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    section {
+      padding: 16px 18px 18px;
+      border-radius: var(--radius-xl);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.95), #020617 65%);
+      box-shadow: 0 14px 40px rgba(15, 23, 42, 0.7);
+    }
+
+    section h2 {
+      margin-top: 0;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    section h3 {
+      font-size: 15px;
+      margin-top: 14px;
+      margin-bottom: 6px;
+    }
+
+    p {
+      margin: 6px 0 8px;
+      color: var(--text-main);
+      font-size: 14px;
+    }
+
+    ul {
+      margin: 4px 0 8px 18px;
+      padding-left: 0;
+      color: var(--text-main);
+      font-size: 14px;
+    }
+
+    li {
+      margin-bottom: 3px;
+    }
+
+    .pill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+      margin-bottom: 4px;
+    }
+
+    .pill {
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    .section-caption {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 4px;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(55, 65, 81, 0.8);
+      vertical-align: top;
+    }
+
+    th {
+      text-align: left;
+      color: var(--text-muted);
+      font-weight: 500;
+      background: rgba(15, 23, 42, 0.8);
+    }
+
+    tr:nth-child(even) td {
+      background: rgba(15, 23, 42, 0.5);
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      background: rgba(15, 23, 42, 0.9);
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid rgba(75, 85, 99, 0.9);
+      color: #e5e7eb;
+    }
+
+    .footer {
+      margin-top: 18px;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <header class="header">
+    <div class="badge">
+      <span class="badge-dot"></span>
+      STOCK INTELLIGENCE PLATFORM
+    </div>
+    <h1>
+      <span class="icon">📘</span>
+      Stock Intelligence Platform Documentation
+    </h1>
+    <p class="header-sub">
+      A comprehensive, RAG-powered equity research platform for the Indian markets, built on Supabase, LangChain, Chroma, FastAPI, and Streamlit, with data ingestion from Screener.in, Yahoo Finance, and Google News.
+    </p>
+    <div class="tag-row">
+      <span class="tag">Python</span>
+      <span class="tag">Supabase (PostgreSQL)</span>
+      <span class="tag">LangChain &amp; Gemini</span>
+      <span class="tag">Chroma Vector Store</span>
+      <span class="tag">FastAPI Backend</span>
+      <span class="tag">Streamlit UI</span>
+      <span class="tag">Render.com Hosting</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="toc">
+      <div class="toc-title">Contents</div>
+      <ul>
+        <li><a href="#overview">1. Overview</a></li>
+        <li><a href="#tech-stack">2. Technology Stack</a></li>
+        <li><a href="#architecture">3. Architecture &amp; Data Pipelines</a></li>
+        <li><a href="#modules">4. Core Modules</a></li>
+        <li><a href="#files">5. Key Files</a></li>
+        <li><a href="#deployment">6. Deployment &amp; Hosting</a></li>
+        <li><a href="#usage">7. Usage Overview</a></li>
+      </ul>
+    </nav>
+
+    <main class="content">
+      <section id="overview">
+        <h2>1. Overview</h2>
+        <p>
+          The <strong>Stock Intelligence Platform</strong> is a comprehensive system designed to ingest, process,
+          analyse, and provide insights on stock market data, with a focus on Indian stocks from the NSE 500 universe.
+          It integrates multiple data ingestion pipelines, advanced derived computations, rating engines, and a
+          Retrieval-Augmented Generation (RAG) vector-store-powered LLM agent to produce deep equity research reports.
+        </p>
+      </section>
+
+      <section id="tech-stack">
+        <h2>2. Technology Stack</h2>
+        <p class="section-caption">Primary technologies and services used across the platform.</p>
+
+        <ul>
+          <li><strong>Programming Language:</strong> Python</li>
+          <li><strong>LLM &amp; AI:</strong> Google Gemini LLM, LangChain framework, LangChain Agents</li>
+          <li><strong>Vector Store:</strong> Chroma for RAG-based internal knowledge retrieval</li>
+          <li><strong>Data Backend:</strong> Supabase (PostgreSQL-based hosted backend and database)</li>
+          <li><strong>Web API:</strong> FastAPI</li>
+          <li><strong>Frontend/UI:</strong> Streamlit app for interactive dashboards and reports</li>
+          <li><strong>Data Sources:</strong> Screener.in, Yahoo Finance, Google Finance, Google News RSS feeds</li>
+          <li><strong>Config &amp; Secrets:</strong> <code>python-dotenv</code> for environment variables</li>
+          <li><strong>Hosting:</strong> API backend and UI hosted on Render.com; source stored in GitHub</li>
+          <li><strong>Security:</strong> <code>bcrypt</code> for password hashing in app user management</li>
+        </ul>
+      </section>
+
+      <section id="architecture">
+        <h2>3. Architecture &amp; Data Pipelines</h2>
+
+        <h3>3.1 High-Level Architecture</h3>
+        <p>
+          At a high level, the platform consists of five major pipelines that feed into a unified analytical layer and RAG agent:
+        </p>
+        <ul>
+          <li>
+            <strong>1. Screener.in Ingestion Pipeline</strong> – pulls historical and master datasets of stock
+            fundamentals and ownership metrics.
+          </li>
+          <li>
+            <strong>2. Yahoo Finance Ingestion Pipeline</strong> – collects master and historical data such as prices,
+            market cap, earnings, cash flows, and analyst estimates.
+          </li>
+          <li>
+            <strong>3. Derived Metrics Calculation Pipeline</strong> – computes advanced valuation, growth, risk, and
+            profitability metrics derived from the raw data.
+          </li>
+          <li>
+            <strong>4. Stock Rating Engine</strong> – consolidates multiple quantitative scores into a composite rating
+            and suggested investment action (Buy, Accumulate, Hold, Avoid).
+          </li>
+          <li>
+            <strong>5. RAG Vectorstore &amp; LLM Agent Pipeline</strong> – indexes stock-level data into a Chroma
+            vector store and uses LangChain + Gemini to answer natural language equity research queries.
+          </li>
+        </ul>
+      </section>
+
+      <section id="modules">
+        <h2>4. Core Modules</h2>
+
+        <h3>4.1 Agent &amp; LLM Interaction</h3>
+        <p>
+          The agent layer uses LangChain v1 to orchestrate multiple tools and the Google Gemini LLM:
+        </p>
+        <ul>
+          <li>Internal RAG retrieval from the Chroma vector store</li>
+          <li>Recent news summarisation using Google News RSS feeds</li>
+          <li>External finance site scraping (Yahoo Finance, Google Finance, Screener.in) and summarisation</li>
+        </ul>
+        <p>
+          These tools are combined into a single LangChain agent that can answer detailed equity research questions and
+          generate structured reports.
+        </p>
+
+        <h3>4.2 Data Ingestion &amp; Merging</h3>
+        <p>
+          Multiple ingestion scripts stage data from external sources into Supabase <em>staging tables</em>.
+          Subsequent merge logic:
+        </p>
+        <ul>
+          <li>Combines Screener.in, Yahoo Finance, and other source data</li>
+          <li>Produces <strong>consolidated</strong>, <strong>derived</strong>, and <strong>rating</strong> tables per ticker</li>
+          <li>Prepares unified Python dictionaries for downstream LLM/RAG pipelines</li>
+        </ul>
+
+        <h3>4.3 Derived Metrics Computation</h3>
+        <p>
+          The derived metrics pipeline computes:
+        </p>
+        <ul>
+          <li>Price returns (3M, 6M, 12M, YTD)</li>
+          <li>Valuation ratios: P/E, forward P/E, PEG, P/S, P/B, EV/EBITDA, market-cap-to-revenue</li>
+          <li>Profitability and margin metrics: gross, operating, net margins, ROCE, ROE (if available)</li>
+          <li>Growth metrics: revenue growth, EPS growth over different periods</li>
+          <li>Risk metrics: beta, debt-to-equity, cash conversion cycle, debtor days</li>
+          <li>Cash flow metrics: free cash flow margins, operating cash flow margins</li>
+        </ul>
+        <p>
+          Numeric values are cleaned and clamped where necessary to avoid extreme outliers and maintain consistency.
+        </p>
+
+        <h3>4.4 Ratings Engine</h3>
+        <p>
+          The ratings engine scores each stock along multiple dimensions:
+        </p>
+        <ul>
+          <li>Momentum score</li>
+          <li>Quality score</li>
+          <li>Valuation score</li>
+          <li>Growth score</li>
+          <li>Financial stability score</li>
+          <li>Cash flow score</li>
+        </ul>
+        <p>
+          Each dimension has configurable bandings and weights. A <strong>composite score</strong> is then derived, which
+          maps to an investment rating and action such as <em>Buy</em>, <em>Accumulate</em>, <em>Hold</em>, or <em>Avoid</em>.
+        </p>
+
+        <h3>4.5 News &amp; Finance Data Summarisation</h3>
+        <p>
+          The platform uses dedicated tools for qualitative information:
+        </p>
+        <ul>
+          <li>Fetches recent top news for a ticker using Google News RSS</li>
+          <li>Summarises narrative content from Yahoo Finance, Google Finance, and Screener.in company pages</li>
+          <li>Uses Gemini LLM to generate concise bullet-point summaries for inclusion in reports</li>
+        </ul>
+
+        <h3>4.6 API &amp; UI Layer</h3>
+        <p>
+          Two main user-facing components:
+        </p>
+        <ul>
+          <li><strong>FastAPI backend</strong> exposing endpoints (e.g., <code>/agent</code>, <code>/health</code>) for running the AI agent.</li>
+          <li><strong>Streamlit frontend</strong> providing:
+            <ul>
+              <li>Dashboard views for ratings and fundamentals</li>
+              <li>Chat-style interface to ask questions about stocks or the entire universe</li>
+              <li>Report generation workflows using uploaded or default templates</li>
+            </ul>
+          </li>
+        </ul>
+      </section>
+
+      <section id="files">
+        <h2>5. Key File Highlights</h2>
+
+        <p class="section-caption">
+          Important Python modules and their roles in the system.
+        </p>
+
+        <table>
+          <thead>
+          <tr>
+            <th>File Name</th>
+            <th>Description</th>
+            <th>Technologies</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr>
+            <td><code>agent.py</code></td>
+            <td>LangChain agent definitions and orchestration of tools and LLM calls.</td>
+            <td>LangChain, Gemini LLM</td>
+          </tr>
+          <tr>
+            <td><code>api.py</code></td>
+            <td>FastAPI backend exposing routes such as <code>/agent</code> for interactive queries.</td>
+            <td>FastAPI, Gemini LLM</td>
+          </tr>
+          <tr>
+            <td><code>build_docs.py</code></td>
+            <td>Functions to build structured, human-readable documents from merged stock data.</td>
+            <td>Python data processing</td>
+          </tr>
+          <tr>
+            <td><code>calc_derived_value.py</code></td>
+            <td>Computation of derived metrics (returns, growth, margins, etc.) from raw inputs.</td>
+            <td>Python, Supabase client</td>
+          </tr>
+          <tr>
+            <td><code>calc_ratings.py</code></td>
+            <td>Core stock rating logic mapping metrics → scores → composite rating.</td>
+            <td>Python, scoring algorithms</td>
+          </tr>
+          <tr>
+            <td><code>finance_web_tool.py</code></td>
+            <td>Scrapes finance sites and uses the LLM to summarise qualitative information.</td>
+            <td>Requests, BeautifulSoup, Gemini LLM</td>
+          </tr>
+          <tr>
+            <td><code>news_tool.py</code></td>
+            <td>Fetches and summarises recent news from Google News RSS feeds.</td>
+            <td>feedparser, Gemini LLM</td>
+          </tr>
+          <tr>
+            <td><code>rag_chain.py</code></td>
+            <td>Core RAG pipeline integrating vectorstore retrieval and LLM reasoning.</td>
+            <td>LangChain, Chroma, Gemini LLM</td>
+          </tr>
+          <tr>
+            <td><code>supabaseclient.py</code></td>
+            <td>Supabase client setup and helper utilities for database access.</td>
+            <td>Supabase SDK, <code>python-dotenv</code></td>
+          </tr>
+          <tr>
+            <td><code>ui_app.py</code></td>
+            <td>Streamlit UI application integrating dashboards, chat, and report generation.</td>
+            <td>Streamlit, Supabase client</td>
+          </tr>
+          <tr>
+            <td><code>llm_setup.py</code></td>
+            <td>Configuration for Gemini LLM models and embedding functions.</td>
+            <td>LangChain, Gemini API</td>
+          </tr>
+          <tr>
+            <td><code>ingest_supabase.py</code></td>
+            <td>Builds documents and ingests them into the Chroma vector store.</td>
+            <td>Chroma vector store</td>
+          </tr>
+          <tr>
+            <td><code>screenr_stage.py</code></td>
+            <td>Scraping and staging data ingestion from Screener.in.</td>
+            <td>Requests, BeautifulSoup</td>
+          </tr>
+          <tr>
+            <td><code>yfin_staging.py</code></td>
+            <td>Yahoo Finance data ingestion and staging scripts.</td>
+            <td>Yahoo Finance APIs / libraries, Supabase client</td>
+          </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="deployment">
+        <h2>6. Deployment &amp; Hosting</h2>
+
+        <p>
+          The platform uses Git + Render.com for deployment and environment management.
+        </p>
+
+        <ul>
+          <li><strong>Version Control:</strong> Entire codebase managed in a Git repository (e.g., GitHub).</li>
+          <li>
+            <strong>Backend Service (FastAPI):</strong> Deployed as a web service on Render.com.
+            Environment variables are configured in Render, including Supabase URLs, API keys, and Gemini credentials.
+          </li>
+          <li>
+            <strong>UI Service (Streamlit):</strong> Deployed separately on Render.com, pointing to the FastAPI backend
+            via its public URL.
+          </li>
+          <li>
+            <strong>Environment Management:</strong> Local development uses <code>.env</code> files loaded via
+            <code>python-dotenv</code>; production uses Render’s built-in environment variable configuration.
+          </li>
+          <li>
+            <strong>Data Refresh:</strong> Production deployments can optionally run ingestion and vectorstore update
+            scripts as background jobs or scheduled tasks, depending on requirements.</li>
+        </ul>
+      </section>
+
+      <section id="usage">
+        <h2>7. Usage Overview</h2>
+
+        <h3>7.1 Data Refresh Workflow</h3>
+        <ul>
+          <li>Run Screener.in and Yahoo Finance ingestion scripts to populate staging tables.</li>
+          <li>Run merge and derived metrics scripts to update consolidated and derived tables.</li>
+          <li>Run the ratings engine to recompute stock scores and actions.</li>
+          <li>Execute the RAG ingestion script to rebuild or update the Chroma vector store.</li>
+        </ul>
+
+        <h3>7.2 Interactive Use</h3>
+        <ul>
+          <li>Use the Streamlit UI to:
+            <ul>
+              <li>Browse ratings and fundamentals for individual tickers</li>
+              <li>Chat with the RAG agent about specific stocks or subsets of the universe</li>
+              <li>Generate long-form equity research reports from templates</li>
+            </ul>
+          </li>
+          <li>Use the FastAPI endpoint <code>/agent</code> to integrate the intelligence engine into other tools.</li>
+        </ul>
+
+        <p>
+          The system combines structured fundamentals, derived analytics, ownership patterns, external commentary, and
+          latest news into a unified equity research experience.
+        </p>
+      </section>
+
+      <div class="footer">
+        Stock Intelligence Platform &mdash; internal engineering documentation.
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

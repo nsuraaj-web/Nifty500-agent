@@ -1,1 +1,4 @@
  .\venv\Scripts\Activate.ps1
+
+$env:PYTHONPATH = (Get-Location)
+python .\myapp\StockRating\rag\merge_data.py
