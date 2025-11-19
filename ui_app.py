@@ -370,67 +370,6 @@ def download_text_file(content: str, filename: str = "stock_report.md") -> bytes
     return content.encode("utf-8")
 
 
-from fpdf import FPDF
-from fpdf.errors import FPDFException  # <- add this import at the top of ui_app.py
-
-
-def generate_pdf_bytes(report_text: str, title: str) -> bytes:
-    """
-    Simple text → PDF using fpdf2 with defensive handling:
-    - Replace unsupported chars like ₹
-    - Wrap long lines into smaller chunks
-    - Skip/truncate any lines that FPDF can't render instead of crashing
-    """
-    # 1) Sanitize text for core fonts
-    safe_text = (
-        report_text
-        .replace("₹", "Rs.")          # currency symbol
-        .replace("\t", "    ")        # tabs → spaces
-    )
-
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    pdf.set_title(title)
-
-    # Core, non-unicode font
-    pdf.set_font("Helvetica", size=12)
-
-    max_chunk_len = 120  # keep each written line reasonably short
-
-    for raw_line in safe_text.splitlines():
-        # blank line → vertical spacing
-        if not raw_line.strip():
-            pdf.ln(5)
-            continue
-
-        line = raw_line
-
-        # 2) Break very long lines into chunks
-        start = 0
-        while start < len(line):
-            chunk = line[start:start + max_chunk_len]
-            start += max_chunk_len
-
-            # extra safety: strip crazy control chars
-            chunk = "".join(ch for ch in chunk if ord(ch) >= 32 or ch in "\n\r")
-
-            if not chunk.strip():
-                pdf.ln(3)
-                continue
-
-            try:
-                pdf.multi_cell(0, 6, chunk)
-            except FPDFException:
-                # last resort: try a smaller slice; if still fails, skip it
-                try:
-                    pdf.multi_cell(0, 6, chunk[:40])
-                except FPDFException:
-                    # give up on this problematic piece
-                    continue
-
-    return pdf.output(dest="S").encode("latin-1")
-
 
 
 def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
@@ -847,14 +786,4 @@ with tab_reports:
                         mime="text/markdown",
                     )
 
-                    # PDF download
-                    pdf_bytes = generate_pdf_bytes(
-                        report,
-                        title=f"{selected_ticker} - {selected_name} Report",
-                    )
-                    st.download_button(
-                        label="⬇️ Download report as PDF",
-                        data=pdf_bytes,
-                        file_name=f"{selected_ticker}_report.pdf",
-                        mime="application/pdf",
-                    )
+
