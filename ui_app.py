@@ -374,6 +374,7 @@ def generate_pdf_bytes(report_text: str, title: str) -> bytes:
     Very simple text → PDF using fpdf2.
     Handles multi-line text and basic wrapping.
     """
+    safe_text = report_text.replace("₹", "Rs.") 
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
