@@ -12,12 +12,6 @@ import pandas as pd
 
 from supabaseclient import supabase  # your existing Supabase client
 
-# Try importing orchestrator for the manual pipeline run button
-try:
-    from orchestrator import main as run_full_pipeline
-except ImportError:
-    run_full_pipeline = None
-
 # -----------------------------
 # Streamlit Config
 # -----------------------------
@@ -28,10 +22,15 @@ st.set_page_config(
 )
 
 # Backend API base (FastAPI + agent)
+# On Render UI service, set DEFAULT_API_BASE to your backend URL, e.g.:
+# https://nifty500-agent.onrender.com
 DEFAULT_API_BASE = os.getenv("DEFAULT_API_BASE", "http://127.0.0.1:8000")
 
 # Static docs URL (served by FastAPI /docs-static mount)
-DOCS_URL = os.getenv("DOCS_URL", "/docs-static/index.html")
+DOCS_URL = os.getenv(
+    "DOCS_URL",
+    "https://nifty500-agent.onrender.com/docs-static/index.html",  # change if needed
+)
 
 # -----------------------------
 # Conceptual Buckets for Internal Data
@@ -338,6 +337,23 @@ def call_agent(api_base: str, query: str, timeout: int = 60) -> Optional[str]:
         return None
 
 
+def trigger_pipeline(api_base: str) -> str:
+    """
+    Trigger backend orchestrator via /run-pipeline endpoint.
+    """
+    try:
+        resp = requests.post(
+            f"{api_base.rstrip('/')}/run-pipeline",
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return f"Error {resp.status_code}: {resp.text}"
+        data = resp.json()
+        return data.get("message", "Pipeline started.")
+    except Exception as e:
+        return f"Failed to trigger pipeline: {e}"
+
+
 def beautify_number(val: Any) -> str:
     if val is None:
         return "-"
@@ -461,6 +477,22 @@ if st.sidebar.button("Logout"):
 # API base
 api_base = st.sidebar.text_input("API Base URL", value=DEFAULT_API_BASE)
 
+# Manual pipeline trigger (backend)
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🛠 Maintenance")
+
+if st.sidebar.button("🚀 Run full data pipeline now"):
+    if not api_base:
+        st.sidebar.error("Please set API Base URL first.")
+    else:
+        with st.sidebar:
+            with st.spinner("Triggering pipeline on backend..."):
+                msg = trigger_pipeline(api_base)
+        if msg.startswith("Error") or msg.startswith("Failed"):
+            st.sidebar.error(msg)
+        else:
+            st.sidebar.success(msg)
+
 # Tickers
 tickers_map = load_tickers()
 if not tickers_map:
@@ -482,22 +514,6 @@ st.sidebar.markdown(
     f'<a href="{DOCS_URL}" target="_blank">📘 Platform Documentation</a>',
     unsafe_allow_html=True,
 )
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 🛠 Maintenance")
-
-if run_full_pipeline is None:
-    st.sidebar.caption("Orchestrator not available in this deployment.")
-else:
-    if st.sidebar.button("Run full data pipeline now"):
-        with st.spinner("Running full pipeline... this may take several minutes."):
-            try:
-                run_full_pipeline()
-                st.sidebar.success("✅ Pipeline completed successfully.")
-                st.success("✅ Full data pipeline completed successfully.")
-            except Exception as e:
-                st.sidebar.error("❌ Pipeline failed. See main area for details.")
-                st.error(f"Pipeline failed: {e}")
 
 st.sidebar.caption("Backend: FastAPI + LangChain RAG + Supabase + Chroma")
 
