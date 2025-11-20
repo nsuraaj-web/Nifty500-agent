@@ -9,10 +9,14 @@ import bcrypt
 import streamlit as st
 import requests
 import pandas as pd
-from fpdf import FPDF
-from fpdf.errors import FPDFException  # <- add this import at the top of ui_app.py
 
 from supabaseclient import supabase  # your existing Supabase client
+
+# Try importing orchestrator for the manual pipeline run button
+try:
+    from orchestrator import main as run_full_pipeline
+except ImportError:
+    run_full_pipeline = None
 
 # -----------------------------
 # Streamlit Config
@@ -25,6 +29,9 @@ st.set_page_config(
 
 # Backend API base (FastAPI + agent)
 DEFAULT_API_BASE = os.getenv("DEFAULT_API_BASE", "http://127.0.0.1:8000")
+
+# Static docs URL (served by FastAPI /docs-static mount)
+DOCS_URL = os.getenv("DOCS_URL", "/docs-static/index.html")
 
 # -----------------------------
 # Conceptual Buckets for Internal Data
@@ -321,7 +328,10 @@ def call_agent(api_base: str, query: str, timeout: int = 60) -> Optional[str]:
         data = resp.json()
         return data.get("answer", "")
     except requests.exceptions.ReadTimeout:
-        st.error("Agent timed out while generating a response. Try a shorter question or simpler template.")
+        st.error(
+            "Agent timed out while generating a response. "
+            "Try a shorter question or simpler template."
+        )
         return None
     except Exception as e:
         st.error(f"Failed to call agent: {e}")
@@ -368,8 +378,6 @@ def make_report_prompt(ticker: str, company_name: str, template_text: str) -> st
 
 def download_text_file(content: str, filename: str = "stock_report.md") -> bytes:
     return content.encode("utf-8")
-
-
 
 
 def authenticate_user(email: str, password: str) -> Optional[Dict[str, Any]]:
@@ -424,11 +432,9 @@ def require_login():
     if submitted:
         user = authenticate_user(email, password)
         if user:
-            if user:
-                st.session_state.user = user
-                st.success(f"Welcome, {user.get('full_name') or user['email']}!")
-                st.rerun()
-
+            st.session_state.user = user
+            st.success(f"Welcome, {user.get('full_name') or user['email']}!")
+            st.rerun()
         else:
             st.error("Invalid email or password.")
 
@@ -447,12 +453,15 @@ st.sidebar.title("⚙️ Settings")
 user = st.session_state.user
 st.sidebar.write(f"👤 {user.get('full_name') or user['email']}")
 
+# Logout
 if st.sidebar.button("Logout"):
     st.session_state.user = None
     st.rerun()
 
+# API base
 api_base = st.sidebar.text_input("API Base URL", value=DEFAULT_API_BASE)
 
+# Tickers
 tickers_map = load_tickers()
 if not tickers_map:
     st.sidebar.error("No tickers loaded from Supabase. Check supabaseclient & env.")
@@ -468,8 +477,27 @@ else:
     selected_name = tickers_map.get(selected_ticker, selected_ticker)
 
 st.sidebar.markdown("---")
-st.sidebar.markdown(f"[📘 Platform Documentation]({DOCS_URL})",)
-st.sidebar.markdown(f'<a href="{DOCS_URL}" target="_blank">📘 Platform Documentation</a>',unsafe_allow_html=True,)
+st.sidebar.markdown("### 📚 Documentation")
+st.sidebar.markdown(
+    f'<a href="{DOCS_URL}" target="_blank">📘 Platform Documentation</a>',
+    unsafe_allow_html=True,
+)
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🛠 Maintenance")
+
+if run_full_pipeline is None:
+    st.sidebar.caption("Orchestrator not available in this deployment.")
+else:
+    if st.sidebar.button("Run full data pipeline now"):
+        with st.spinner("Running full pipeline... this may take several minutes."):
+            try:
+                run_full_pipeline()
+                st.sidebar.success("✅ Pipeline completed successfully.")
+                st.success("✅ Full data pipeline completed successfully.")
+            except Exception as e:
+                st.sidebar.error("❌ Pipeline failed. See main area for details.")
+                st.error(f"Pipeline failed: {e}")
 
 st.sidebar.caption("Backend: FastAPI + LangChain RAG + Supabase + Chroma")
 
@@ -569,7 +597,10 @@ with tab_chat:
     placeholder_ticker = selected_ticker or "TCS"
     user_question = st.text_area(
         "Your question",
-        value=f"Give me a concise investment thesis for {placeholder_ticker}, including key risks and valuation view.",
+        value=(
+            f"Give me a concise investment thesis for {placeholder_ticker}, "
+            "including key risks and valuation view."
+        ),
         height=100,
     )
 
@@ -771,7 +802,6 @@ with tab_reports:
                     # Reports can be heavier; allow more time
                     report = call_agent(api_base, prompt, timeout=120)
 
-
                 if report:
                     st.success("Report generated.")
                     st.markdown("### Preview")
@@ -788,5 +818,3 @@ with tab_reports:
                         file_name=f"{selected_ticker}_report.md",
                         mime="text/markdown",
                     )
-
-
