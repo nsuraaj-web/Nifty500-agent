@@ -186,4 +186,4 @@ This project is for educational and demonstration purposes.
 - Building AI-powered solutions for Fortune 500 clients
 - Exploring practical agentic AI and GenAI applications
 
-[LinkedIn](https://linkedin.com/in/surajnair) • [Email](mailto:nsuraaj@gmail.com)
+[LinkedIn](https://linkedin.com/in/nsuraaj) • [Email](mailto:nsuraaj@gmail.com)
